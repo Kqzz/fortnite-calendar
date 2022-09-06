@@ -1,8 +1,14 @@
 from typing import List
 import re
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
+from ics import Calendar, Event
+from flask import Flask, request
+import threading 
+
+
+app = Flask(__name__)
 
 find_events = re.compile('(?<=imp_calendar = ).*(?=;<\/script>)')
 
@@ -29,11 +35,50 @@ def get_events(region: str) -> List | None:
     return e
 
 
+def get_cal(events, hype, console):
+    c = Calendar()
+
+    for event in events:
+        data = event.get("customData")
+        date = datetime.strptime(
+            data["windows"][0]["beginTime"], "%Y-%m-%dT%H:%M:%S+00:00")
+        title = data["title"]
+
+        if "HYPE" in title and not hype:
+            continue
+
+        if "CONSOLE" in title and not console:
+            continue
+
+        log(f"{title}: {date}")
+
+        e = Event(
+            name=title,
+            url=f"https://fortnitetracker.com/events/{data['windows'][0]['eventId']}",
+            begin=date,
+            end=date + timedelta(hours=1, minutes=30)
+        )
+
+        c.events.add(e)
+
+    return c.serialize()
+
+
+@app.route('/cal.ics')
+def _events():
+    hype = request.args.get("hype", type=bool) or False
+    console = request.args.get("console", type=bool) or False
+
+    cal = get_cal(events, hype, console)
+    return cal
+
+def update_events():
+    global events
+    events = get_events("NAE")
+
 events = get_events("NAE")
 
-for event in events:
-    data = event.get("customData")
-    date = datetime.strptime(data["windows"][0]["beginTime"], "%Y-%m-%dT%H:%M:%S+00:00")
-    title = data["title"]
+if __name__ == '__main__':
 
-    log(f"{title}: {date}")
+    threading.Timer(60 * 60 * 24, update_events)
+    app.run()
