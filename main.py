@@ -1,11 +1,13 @@
+#!/bin/python3
+
 from typing import List
 import re
-import requests
 from datetime import datetime, timedelta
+import requests
 import json
 from ics import Calendar, Event
 from flask import Flask, request
-import threading 
+import threading
 
 
 app = Flask(__name__)
@@ -72,9 +74,11 @@ def _events():
     cal = get_cal(events, hype, console)
     return cal
 
+
 def update_events():
     global events
     events = get_events("NAE")
+
 
 events = get_events("NAE")
 
