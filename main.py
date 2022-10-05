@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 import requests
 import json
 from ics import Calendar, Event
-from flask import Flask, request
+from flask import Flask, request, send_file
 import threading
 
 
@@ -73,6 +73,11 @@ def _events():
 
     cal = get_cal(events, hype, console)
     return cal
+
+
+@app.route('/')
+def _index():
+    return send_file("index.html")
 
 
 def update_events():
