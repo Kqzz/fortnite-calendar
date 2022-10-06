@@ -12,7 +12,7 @@ import threading
 
 app = Flask(__name__)
 
-find_events = re.compile('(?<=imp_calendar = ).*(?=;<\/script>)')
+TIMEFMT = "%Y-%m-%dT%H:%M:%S"
 
 
 def log(m: str):
@@ -20,58 +20,65 @@ def log(m: str):
 
 
 def get_events(region: str) -> List | None:
-    url = f"https://fortnitetracker.com/events?region={region}"
-    log(f"GET: {url}")
+    url = f"https://www.epicgames.com/fortnite/competitive/api/en-US/calendar"
 
-    req = requests.get(url)
+    res = requests.post(url)
 
-    if req.status_code != 200:
-        log(f"failed: {req.status_code}")
+    if res.status_code != 200:
+        log(f"failed: {res.status_code}")
         return None
 
-    page = req.text.replace("\r\n", "").replace("00.001", "00")
-    events_txt = find_events.findall(page, re.DOTALL)
+    e = res.json()
 
-    e = json.loads(events_txt[0])
-
-    return e
+    return e["eventsData"]
 
 
-def get_cal(events, hype, console):
+def get_cal(events, region):
     c = Calendar()
 
+    now = datetime.now()
     for event in events:
-        data = event.get("customData")
-        date = datetime.strptime(
-            data["windows"][0]["beginTime"], "%Y-%m-%dT%H:%M:%S+00:00")
-        title = data["title"]
+        for window in event['eventWindows']:
+            title = window['eventWindowId']
+            title = title.split('_Event')[0]
+            title = title.split('_Week')[0]
 
-        if "HYPE" in title and not hype:
-            continue
+            if region.upper() not in title:
+                continue
 
-        if "CONSOLE" in title and not console:
-            continue
+            fmt = TIMEFMT
+            if "." in window['beginTime']:
+                fmt += ".%f"
+            fmt += "Z"
 
-        log(f"{title}: {date}")
+            beginTime = datetime.strptime(window['beginTime'], fmt)
 
-        e = Event(
-            name=title,
-            url=f"https://fortnitetracker.com/events/{data['windows'][0]['eventId']}",
-            begin=date,
-            end=date + timedelta(hours=1, minutes=30)
-        )
+            if datetime.now() > beginTime:
+                continue
 
-        c.events.add(e)
+            fmt = TIMEFMT
+            if "." in window['endTime']:
+                fmt += ".%f"
+            fmt += "Z"
+            endTime = datetime.strptime(window['endTime'], fmt)
+
+            e = Event(
+                name=title,
+                url=f"https://fortnitetracker.com/events/epicgames_{title}",
+                begin=beginTime,
+                end=endTime + timedelta(hours=1, minutes=30)
+            )
+
+            c.events.add(e)
 
     return c.serialize()
 
 
 @app.route('/cal.ics')
 def _events():
-    hype = request.args.get("hype", type=bool) or False
-    console = request.args.get("console", type=bool) or False
+    region = request.args.get("region", type=str) or "NAE"
 
-    cal = get_cal(events, hype, console)
+    cal = get_cal(events, region)
     return cal
 
 
@@ -89,5 +96,5 @@ events = get_events("NAE")
 
 if __name__ == '__main__':
 
-    threading.Timer(60 * 60 * 24, update_events)
+    threading.Timer(60 * 60 * 12, update_events)
     app.run()
