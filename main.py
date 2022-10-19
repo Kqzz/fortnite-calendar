@@ -66,7 +66,7 @@ def get_cal(events, region):
                 name=title,
                 url=f"https://fortnitetracker.com/events/epicgames_{title}",
                 begin=beginTime,
-                end=endTime + timedelta(hours=1, minutes=30)
+                end=endTime
             )
 
             c.events.add(e)
